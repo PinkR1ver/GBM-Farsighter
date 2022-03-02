@@ -4,6 +4,8 @@ import sys
 import cv2
 import os
 from cv2 import transform
+from matplotlib import widgets
+from numpy import squeeze
 import torch
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence
@@ -13,16 +15,18 @@ from PySide6.QtWidgets import (
     QLabel, 
     QMainWindow, 
     QStatusBar, 
-    QToolBar, 
     QFileDialog, 
     QHBoxLayout, 
     QMessageBox,
+    QDialog,
+    QGridLayout,
 )
 from PySide6 import QtGui
 from net import *
 from utils import *
 from utils import keep_image_size_open, keep_image_size_open_gray
 import torchvision
+from feature_extraction import *
 
 basePath = os.path.dirname(__file__)
 
@@ -105,6 +109,8 @@ class MainWindow(QMainWindow):
 
             img = transform(keep_image_size_open_gray(self.file_name))
             torchvision.utils.save_image(img, os.path.join(basePath, 'tmp', 'resize_original_img.png'))
+            img = cv2.imread(os.path.join(basePath, 'tmp', 'resize_original_img.png'), cv2.IMREAD_GRAYSCALE)
+            cv2.imwrite(os.path.join(basePath, 'tmp', 'resize_original_img.png'), img)
 
             pixmap = QtGui.QPixmap(os.path.join(basePath, 'tmp', 'resize_original_img.png'))
             pixmap = pixmap.scaled(self.image_label.width(), self.image_label.height(), Qt.KeepAspectRatio)
@@ -118,9 +124,11 @@ class MainWindow(QMainWindow):
 
     def clickSegmentationImage(self, s):
         if hasattr(self, 'file_name'):
-            self.net.load_state_dict(torch.load(self.modelPath))
+            self.net.load_state_dict(torch.load(self.modelPath, map_location=torch.device(device)))
             outImage = self.net((torch.unsqueeze(transform(keep_image_size_open_gray(self.file_name)), 0)).to(device))
             torchvision.utils.save_image(outImage, os.path.join(basePath, 'tmp', 'segmentation_results.png'))
+            img = cv2.imread(os.path.join(basePath, 'tmp', 'segmentation_results.png'), cv2.IMREAD_GRAYSCALE)
+            cv2.imwrite(os.path.join(basePath, 'tmp', 'segmentation_results.png'), img)
 
             pixmap = QtGui.QPixmap(os.path.join(basePath, 'tmp', 'segmentation_results.png'))
             pixmap = pixmap.scaled(self.segmentation_label.width(), self.segmentation_label.height(), Qt.KeepAspectRatio)
@@ -133,14 +141,66 @@ class MainWindow(QMainWindow):
             dlg.exec()
 
     def clickFeatureExtraction(self, s):
-        print("Feature Extraction")
+        if hasattr(self, 'file_name') and self.segmentation_label.pixmap():
+            self.feature = extract_feature(os.path.join(basePath, 'tmp', 'resize_original_img.png'), os.path.join(basePath, 'tmp', 'segmentation_results.png'))
+            dlg = QDialog()
+            dlg.setWindowTitle("Features")
+            layout = QGridLayout()
+            #print(list(self.feature.items())[5][0])
+            i = 3
+            j = 0
+            while True:
+                #print(i*5 + j)
+                #print(f'{list(self.feature.items())[i*5 + j][0]}:{list(self.feature.items())[i*5 + j][1]}')
+                layout.addWidget(QLabel(f'{list(self.feature.items())[i*3 + j][0]}:{list(self.feature.items())[i*3 + j][1]}'), i, j)
+                if (i * 3 + j) >= len(self.feature) - 1:
+                    break
+                if j == 2:
+                    j = 0
+                    i += 1
+                else:
+                    j += 1 
+            dlg.setLayout(layout)
+            dlg.exec()
+
+        elif not hasattr(self, 'file_name'):
+            dlg = QMessageBox()
+            dlg.setWindowTitle("Wrong!")
+            dlg.setText("You don't select image")
+            dlg.exec()
+        
+        elif not self.segmentation_label.pixmap():
+            dlg = QMessageBox()
+            dlg.setWindowTitle("Wrong!")
+            dlg.setText("You don't annotation your image, using SEGMENTAION IMAGE")
+            dlg.exec()
+        
 
     def clickSubtypePrediction(self, s):
         print("Predict Subtyes")
 
     def clickChooseModel(self, s):
-        print("Choose Model")
-
+        model_name, _ = QFileDialog.getOpenFileName(None, "Select a train model..", os.path.join(basePath, 'model'), '(*pth)')
+        if model_name:
+            self.modelPath = model_name
+            dlg = QMessageBox()
+            dlg.setWindowTitle("Success")
+            if os.name == 'nt':
+                model_name = model_name.split("\\")[-1]
+                dlg.setText(f'You change model into {model_name}')
+            else:
+                dlg.setText(f'You change model into {model_name.split("/")[-1]}')
+            dlg.exec()
+        
+        else:
+            dlg = QMessageBox()
+            dlg.setWindowTitle("No Change")
+            if os.name == 'nt':
+                model_name = self.modelPath.split("\\")[-1]
+                dlg.setText(f'You don\'t change model, you model is still {model_name}')
+            else:
+                dlg.setText(f'You don\'t change model, you model is still {self.modelPath.split("/")[-1]}')
+            dlg.exec()
 
 
 app = QApplication(sys.argv)
