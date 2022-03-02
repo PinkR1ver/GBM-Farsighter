@@ -102,9 +102,10 @@ class MainWindow(QMainWindow):
 
 
     def clickSelectImage(self, s):
-        self.file_name, _ = QFileDialog.getOpenFileName(None, "Select a image...", './', 'Image files (*.png *.jpg)')
+        file_name, _ = QFileDialog.getOpenFileName(None, "Select a image...", './', 'Image files (*.png *.jpg)')
 
-        if self.file_name:
+        if file_name:
+            self.file_name = file_name
             self.segmentation_label.clear()
 
             img = transform(keep_image_size_open_gray(self.file_name))
@@ -117,7 +118,7 @@ class MainWindow(QMainWindow):
 
             self.image_label.setPixmap(pixmap)
 
-        else:
+        elif not self.image_label.pixmap():
             delattr(self, 'file_name')
         
 
