@@ -1,6 +1,6 @@
 from email.mime import base
 import sys
-
+import fnmatch
 import cv2
 import os
 from cv2 import transform
@@ -29,6 +29,8 @@ import torchvision
 from feature_extraction import *
 
 basePath = os.path.dirname(__file__)
+original_image = 'resize_original_img.png'
+segmentation_results = 'segmentation_results.png'
 
 if torch.cuda.is_available():
     device = 'cuda'
@@ -41,7 +43,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.modelPath = os.path.join(basePath, 'model', 'FLAIR_unet.pth')
+        model_detect = fnmatch.filter(os.listdir(os.path.join(basePath, 'model')), "*.pth")[0]
+        self.modelPath = os.path.join(basePath, 'model', model_detect)
         self.net = UNet().to(device)
 
         self.setWindowTitle("GBM Farsighter")
@@ -109,11 +112,11 @@ class MainWindow(QMainWindow):
             self.segmentation_label.clear()
 
             img = transform(keep_image_size_open_gray(self.file_name))
-            torchvision.utils.save_image(img, os.path.join(basePath, 'tmp', 'resize_original_img.png'))
-            img = cv2.imread(os.path.join(basePath, 'tmp', 'resize_original_img.png'), cv2.IMREAD_GRAYSCALE)
-            cv2.imwrite(os.path.join(basePath, 'tmp', 'resize_original_img.png'), img)
+            torchvision.utils.save_image(img, os.path.join(basePath, 'tmp', original_image))
+            img = cv2.imread(os.path.join(basePath, 'tmp', original_image), cv2.IMREAD_GRAYSCALE)
+            cv2.imwrite(os.path.join(basePath, 'tmp', original_image), img)
 
-            pixmap = QtGui.QPixmap(os.path.join(basePath, 'tmp', 'resize_original_img.png'))
+            pixmap = QtGui.QPixmap(os.path.join(basePath, 'tmp', original_image))
             pixmap = pixmap.scaled(self.image_label.width(), self.image_label.height(), Qt.KeepAspectRatio)
 
             self.image_label.setPixmap(pixmap)
@@ -127,11 +130,11 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'file_name'):
             self.net.load_state_dict(torch.load(self.modelPath, map_location=torch.device(device)))
             outImage = self.net((torch.unsqueeze(transform(keep_image_size_open_gray(self.file_name)), 0)).to(device))
-            torchvision.utils.save_image(outImage, os.path.join(basePath, 'tmp', 'segmentation_results.png'))
-            img = cv2.imread(os.path.join(basePath, 'tmp', 'segmentation_results.png'), cv2.IMREAD_GRAYSCALE)
-            cv2.imwrite(os.path.join(basePath, 'tmp', 'segmentation_results.png'), img)
+            torchvision.utils.save_image(outImage, os.path.join(basePath, 'tmp', segmentation_results))
+            img = cv2.imread(os.path.join(basePath, 'tmp', segmentation_results), cv2.IMREAD_GRAYSCALE)
+            cv2.imwrite(os.path.join(basePath, 'tmp', segmentation_results), img)
 
-            pixmap = QtGui.QPixmap(os.path.join(basePath, 'tmp', 'segmentation_results.png'))
+            pixmap = QtGui.QPixmap(os.path.join(basePath, 'tmp', segmentation_results))
             pixmap = pixmap.scaled(self.segmentation_label.width(), self.segmentation_label.height(), Qt.KeepAspectRatio)
 
             self.segmentation_label.setPixmap(pixmap)
@@ -143,7 +146,7 @@ class MainWindow(QMainWindow):
 
     def clickFeatureExtraction(self, s):
         if hasattr(self, 'file_name') and self.segmentation_label.pixmap():
-            self.feature = extract_feature(os.path.join(basePath, 'tmp', 'resize_original_img.png'), os.path.join(basePath, 'tmp', 'segmentation_results.png'))
+            self.feature = extract_feature(os.path.join(basePath, 'tmp', original_image), os.path.join(basePath, 'tmp', segmentation_results))
             dlg = QDialog()
             dlg.setWindowTitle("Features")
             layout = QGridLayout()
