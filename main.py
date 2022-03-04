@@ -31,6 +31,7 @@ from feature_extraction import *
 basePath = os.path.dirname(__file__)
 original_image = 'resize_original_img.png'
 segmentation_results = 'segmentation_results.png'
+annotation_image = 'annotation_image.png'
 
 if torch.cuda.is_available():
     device = 'cuda'
@@ -49,7 +50,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("GBM Farsighter")
 
-        self.setMinimumSize(QSize(800, 450))
+        self.setFixedSize(QSize(800, 450))
 
         self.image_label = QLabel()
         self.segmentation_label = QLabel()
@@ -78,10 +79,13 @@ class MainWindow(QMainWindow):
         feature_extraction.triggered.connect(self.clickFeatureExtraction)
         feature_extraction.setShortcut(QKeySequence("Ctrl+e"))
 
-        subtype_prediction = QAction("Subtype Prediction", self)
-        subtype_prediction.setStatusTip("Predict GBM subtype")
-        subtype_prediction.triggered.connect(self.clickSubtypePrediction)
-        subtype_prediction.setShortcut(QKeySequence("Ctrl+p"))
+        subtype_prediction_randomForest = QAction("Random Forest", self)
+        subtype_prediction_randomForest.setStatusTip("Predict GBM subtype by Random Forest")
+        subtype_prediction_randomForest.triggered.connect(self.clickSubtypePredictionRandomForest)
+
+        subtype_prediction_MLP = QAction("MLP", self)
+        subtype_prediction_MLP.setStatusTip("Predict GBM subtype by multi-layer perceptron")
+        subtype_prediction_MLP.triggered.connect(self.clickSubtypePredictionMLP)
 
         choose_model = QAction("Choose Model", self)
         choose_model.setStatusTip("Choose trained model you want")
@@ -98,7 +102,9 @@ class MainWindow(QMainWindow):
         tool_menu = menu.addMenu("&TOOL")
         tool_menu.addAction(segmentaion_image)
         tool_menu.addAction(feature_extraction)
-        tool_menu.addAction(subtype_prediction)
+        tool_submenu = tool_menu.addMenu("Subtype Prediction")
+        tool_submenu.addAction(subtype_prediction_randomForest)
+        tool_submenu.addAction(subtype_prediction_MLP)
 
         model_menu = menu.addMenu("&MODEL")
         model_menu.addAction(choose_model)
@@ -130,14 +136,31 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'file_name'):
             self.net.load_state_dict(torch.load(self.modelPath, map_location=torch.device(device)))
             outImage = self.net((torch.unsqueeze(transform(keep_image_size_open_gray(self.file_name)), 0)).to(device))
+            outImage = (outImage>0.5).float()
             torchvision.utils.save_image(outImage, os.path.join(basePath, 'tmp', segmentation_results))
+            
             img = cv2.imread(os.path.join(basePath, 'tmp', segmentation_results), cv2.IMREAD_GRAYSCALE)
+            boundary = extract_boundary(np.array(img))
             cv2.imwrite(os.path.join(basePath, 'tmp', segmentation_results), img)
+
+            img = cv2.imread(os.path.join(basePath, 'tmp', original_image), cv2.IMREAD_GRAYSCALE)
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+            img = np.array(img)
+            img = annotation_img(img, boundary)
+            cv2.imwrite(os.path.join(basePath, 'tmp', annotation_image ), img)
+            
 
             pixmap = QtGui.QPixmap(os.path.join(basePath, 'tmp', segmentation_results))
             pixmap = pixmap.scaled(self.segmentation_label.width(), self.segmentation_label.height(), Qt.KeepAspectRatio)
 
             self.segmentation_label.setPixmap(pixmap)
+
+            pixmap = QtGui.QPixmap(os.path.join(basePath, 'tmp', annotation_image))
+            pixmap = pixmap.scaled(self.image_label.width(), self.image_label.height(), Qt.KeepAspectRatio)
+
+            self.image_label.setPixmap(pixmap)
+
+
         else:
             dlg = QMessageBox()
             dlg.setWindowTitle("Wrong!")
@@ -151,12 +174,14 @@ class MainWindow(QMainWindow):
             dlg.setWindowTitle("Features")
             layout = QGridLayout()
             #print(list(self.feature.items())[5][0])
-            i = 3
+            i = 0
             j = 0
             while True:
                 #print(i*5 + j)
                 #print(f'{list(self.feature.items())[i*5 + j][0]}:{list(self.feature.items())[i*5 + j][1]}')
-                layout.addWidget(QLabel(f'{list(self.feature.items())[i*3 + j][0]}:{list(self.feature.items())[i*3 + j][1]}'), i, j)
+                feature_show = str(list(self.feature.items())[i*3 + j][1])
+                feature_show = (feature_show[:20] + '..') if len(feature_show) > 20 else feature_show
+                layout.addWidget(QLabel(f'{list(self.feature.items())[i*3 + j][0]}:{feature_show}'), i, j)
                 if (i * 3 + j) >= len(self.feature) - 1:
                     break
                 if j == 2:
@@ -180,7 +205,10 @@ class MainWindow(QMainWindow):
             dlg.exec()
         
 
-    def clickSubtypePrediction(self, s):
+    def clickSubtypePredictionRandomForest(self, s):
+        print("Predict Subtyes")
+
+    def clickSubtypePredictionMLP(self, s):
         print("Predict Subtyes")
 
     def clickChooseModel(self, s):
