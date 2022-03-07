@@ -1,9 +1,9 @@
+import pickle
 from email.mime import base
 import sys
 import fnmatch
 import cv2
 import os
-from cv2 import transform
 from matplotlib import widgets
 from numpy import squeeze
 import torch
@@ -27,6 +27,10 @@ from utils import *
 from utils import keep_image_size_open, keep_image_size_open_gray
 import torchvision
 from feature_extraction import *
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 
 basePath = os.path.dirname(__file__)
 original_image = 'resize_original_img.png'
@@ -44,8 +48,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        model_detect = fnmatch.filter(os.listdir(os.path.join(basePath, 'model')), "*.pth")[0]
-        self.modelPath = os.path.join(basePath, 'model', model_detect)
+        model_detect = fnmatch.filter(os.listdir(os.path.join(basePath, 'model', 'Segmentation_Model')), "*.pth")[0]
+        self.modelPath = os.path.join(basePath, 'model', 'Segmentation_Model', model_detect)
         self.net = UNet().to(device)
 
         self.setWindowTitle("GBM Farsighter")
@@ -170,6 +174,10 @@ class MainWindow(QMainWindow):
     def clickFeatureExtraction(self, s):
         if hasattr(self, 'file_name') and self.segmentation_label.pixmap():
             self.feature = extract_feature(os.path.join(basePath, 'tmp', original_image), os.path.join(basePath, 'tmp', segmentation_results))
+            self.feature_for_predict = np.array([])
+            for i, (key, val) in enumerate(self.feature.items()):
+                if i > 21:
+                    self.feature_for_predict = np.append(self.feature_for_predict, val)
             dlg = QDialog()
             dlg.setWindowTitle("Features")
             layout = QGridLayout()
@@ -206,13 +214,42 @@ class MainWindow(QMainWindow):
         
 
     def clickSubtypePredictionRandomForest(self, s):
-        print("Predict Subtyes")
+        if not hasattr(self, 'features'):
+            self.feature = extract_feature(os.path.join(basePath, 'tmp', original_image), os.path.join(basePath, 'tmp', segmentation_results))
+            self.feature_for_predict = np.array([])
+            for i, (key, val) in enumerate(self.feature.items()):
+                if i > 21:
+                    self.feature_for_predict = np.append(self.feature_for_predict, val)
+        if hasattr(self, 'file_name') and self.segmentation_label.pixmap():
+            loaded_model = pickle.load(open(os.path.join(basePath, 'model', 'Classification_Model', 'RandomForestModel.sav'), 'rb'))
+            subtype_predict = loaded_model.predict(np.expand_dims(self.feature_for_predict, axis=0))
+            dlg = QMessageBox()
+            dlg.setWindowTitle("Subtype Prediction")
+            message_show = "Subtype is: " + str(subtype_predict[0]) + "\nThis model have 90% accuracy"
+            dlg.setText(message_show)
+            dlg.exec()
 
     def clickSubtypePredictionMLP(self, s):
-        print("Predict Subtyes")
+        if not hasattr(self, 'features'):
+            self.feature = extract_feature(os.path.join(basePath, 'tmp', original_image), os.path.join(basePath, 'tmp', segmentation_results))
+            self.feature_for_predict = np.array([])
+            for i, (key, val) in enumerate(self.feature.items()):
+                if i > 21:
+                    self.feature_for_predict = np.append(self.feature_for_predict, val)
+        if hasattr(self, 'file_name') and self.segmentation_label.pixmap():
+            PCA_loaded = pickle.load(open(os.path.join(basePath, 'model', 'Classification_Model', 'PCA_preparation.sav'), 'rb'))
+            loaded_model = pickle.load(open(os.path.join(basePath, 'model', 'Classification_Model', 'PCAMLP.sav'), 'rb'))
+            self.feature_for_predict = StandardScaler().fit_transform(np.expand_dims(self.feature_for_predict, axis=0))
+            self.feature_for_predict = PCA_loaded.transform(self.feature_for_predict)
+            subtype_predict = loaded_model.predict(self.feature_for_predict)
+            dlg = QMessageBox()
+            dlg.setWindowTitle("Subtype Prediction")
+            message_show = "Subtype is: " + str(subtype_predict[0]) + "\nThis model have 90% accuracy"
+            dlg.setText(message_show)
+            dlg.exec()
 
     def clickChooseModel(self, s):
-        model_name, _ = QFileDialog.getOpenFileName(None, "Select a train model..", os.path.join(basePath, 'model'), '(*pth)')
+        model_name, _ = QFileDialog.getOpenFileName(None, "Select a train model..", os.path.join(basePath, 'model', 'Segmentation_Model'), '(*pth)')
         if model_name:
             self.modelPath = model_name
             dlg = QMessageBox()
