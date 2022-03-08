@@ -244,7 +244,7 @@ class MainWindow(QMainWindow):
             subtype_predict = loaded_model.predict(self.feature_for_predict)
             dlg = QMessageBox()
             dlg.setWindowTitle("Subtype Prediction")
-            message_show = "Subtype is: " + str(subtype_predict[0]) + "\nThis model have 90% accuracy"
+            message_show = "Subtype is: " + str(subtype_predict[0]) + "\nThis model have 92% accuracy"
             dlg.setText(message_show)
             dlg.exec()
 
