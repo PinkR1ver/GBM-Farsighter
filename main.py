@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QDialog,
     QGridLayout,
+    QVBoxLayout,
 )
 from PySide6 import QtGui
 from net import *
@@ -96,6 +97,10 @@ class MainWindow(QMainWindow):
         choose_model.triggered.connect(self.clickChooseModel)
         choose_model.setShortcut(QKeySequence("Ctrl+c"))
 
+        about_button = QAction("About", self)
+        about_button.setStatusTip("About Developer")
+        about_button.triggered.connect(self.clickAbout)
+
         self.setStatusBar(QStatusBar(self))
 
         menu = self.menuBar()
@@ -112,6 +117,11 @@ class MainWindow(QMainWindow):
 
         model_menu = menu.addMenu("&MODEL")
         model_menu.addAction(choose_model)
+
+        help_menu = menu.addMenu("&HELP")
+        help_menu.addAction(about_button)
+
+
 
 
     def clickSelectImage(self, s):
@@ -270,6 +280,31 @@ class MainWindow(QMainWindow):
             else:
                 dlg.setText(f'You don\'t change model, you model is still {self.modelPath.split("/")[-1]}')
             dlg.exec()
+
+    def clickAbout(self, s):
+        dlg = QDialog()
+        dlg.setWindowTitle("About")
+        dlg.setFixedSize(QSize(300, 300))
+
+        About_image = QLabel()
+        pixmap = QtGui.QPixmap(os.path.join(basePath, 'data', 'Ukraine.jpg'))
+        pixmap = pixmap.scaled(About_image.width() / 2, About_image.height() / 2, Qt.KeepAspectRatio)
+        About_image.setPixmap(pixmap)
+
+        About_info1 = QLabel()
+        About_info1.setText("We support Ukraine")
+
+  
+        About_info2 = QLabel()
+        About_info2.setText("Please Refer to www.pinkr1ver.com")      
+
+        layout = QVBoxLayout()
+        layout.addWidget(About_image, alignment=Qt.AlignCenter)
+        layout.addWidget(About_info1, alignment=Qt.AlignCenter)
+        layout.addWidget(About_info2, alignment=Qt.AlignCenter)
+
+        dlg.setLayout(layout)
+        dlg.exec()
 
 
 app = QApplication(sys.argv)
